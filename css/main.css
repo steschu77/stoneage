@@ -1,13 +1,18 @@
 body {
   background-color: lightyellow;
   color: saddlebrown;
-  font-family: 'Sigmar One', cursive;
+  font-family: 'Indie Flower', cursive;
 }
+
 h1 {
   font-size: 300%;
+  font-family: 'Sigmar One', cursive;
+  margin: 1px;
 }
 
 p {
+  font-size: 120%;
+  margin: 1px;
 }
 
 .alert {
