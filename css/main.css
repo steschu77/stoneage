@@ -1,0 +1,19 @@
+body {
+  background-color: lightyellow;
+  color: saddlebrown;
+  font-family: 'Sigmar One', cursive;
+}
+h1 {
+  font-size: 300%;
+}
+
+p {
+}
+
+.alert {
+  background-color: mistyrose;
+  color: red;
+  padding: 15px;
+  border: 1px red;
+  border-radius: 4px;
+}
