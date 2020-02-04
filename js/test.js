@@ -15,6 +15,13 @@ test('dot product', () => {
   assert.equal(b2math.b2Dot(v1, v1), 1.0);
 })
 
+test('cross product', () => {
+  const v0 = new b2math.b2Vec2(1.0, 0.0);
+  const v1 = new b2math.b2Vec2(0.0, 1.0);
+  assert.equal(b2math.b2Cross(v0, v1), 1.0);
+  assert.equal(b2math.b2Cross(v0, v0), 0.0);
+})
+
 function run() {
   tests.forEach(t => {
     try {

@@ -1,104 +1,56 @@
 class b2Vec2 {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
+  constructor(u0, u1) {
+    this.u0 = u0;
+    this.u1 = u1;
   }
 
   set(v) {
-    this.x = v.x;
-    this.y = v.y;
+    this.u0 = v.u0;
+    this.u1 = v.u1;
   }
 
   copy() {
-    return new b2Vec2(this.x, this.y);
+    return new b2Vec2(this.u0, this.u1);
   }
 
   neg() {
-    return new b2Vec2(-this.x, -this.y);
+    return new b2Vec2(-this.u0, -this.u1);
   }
 
   perpendicular() {
-    return new b2Vec2(-this.y, this.x);
-  }
-
-  add(v) {
-    this.x += v.x;
-    this.y += v.y;
-  }
-
-  sub(v) {
-    this.x -= v.x;
-    this.y -= v.y;
-  }
-
-  mul(a) {
-    this.x *= a;
-    this.y *= a;
-  }
-
-  mulM(A) {
-    var x = this.x;
-    var y = this.y;
-    this.x = A.col1.x * x + A.col2.x * y;
-    this.y = A.col1.y * x + A.col2.y * y;
-  }
-
-  abs() {
-    this.x = Math.abs(this.x);
-    this.y = Math.abs(this.y);
+    return new b2Vec2(this.u1, -this.u0);
   }
 
   length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
+    return Math.sqrt(this.u0 * this.u0 + this.u1 * this.u1);
   }
 
   normalize() {
-    var l = this.length();
+    const l = this.length();
     if (l < Number.MIN_VALUE) {
-      return 0.0;
+      return copy();
     }
 
-    var invLength = 1.0 / length;
-    this.x *= invLength;
-    this.y *= invLength;
-    return length;
+    const invLength = 1.0 / length;
+    const u0 = invLength * this.u0;
+    const u1 = invLength * this.u1;
+    return b2Vec2(u0, u1);
   }
 }
 
 class b2Mat22 {
-  constructor(c1, c2) {
-    this.col1 = c1.copy();
-    this.col2 = c2.copy();
+  constructor(v0, v1) {
+    this.v0 = v0.copy();
+    this.v1 = v1.copy();
   }
 
-  rotate(angle) {
-    var c = Math.cos(angle);
-    var s = Math.sin(angle);
-    this.col1.x = c;
-    this.col2.x = -s;
-    this.col1.y = s;
-    this.col2.y = c;
-  }
-
-  set(c1, c2) {
-    this.col1.set(c1);
-    this.col2.set(c2);
+  set(m) {
+    this.v0.set(m.v0);
+    this.v1.set(m.v1);
   }
 
   copy() {
-    return new b2Mat22(this.col1, this.col2);
-  }
-
-  add(m) {
-    this.col1.x += m.col1.x;
-    this.col1.y += m.col1.y;
-    this.col2.x += m.col2.x;
-    this.col2.y += m.col2.y;
-  }
-
-  abs() {
-    this.col1.abs();
-    this.col2.abs();
+    return new b2Mat22(this.v0, this.v1);
   }
 
   invert() {
@@ -141,23 +93,6 @@ class b2Transform {
   }
 }
 
-class b2BoxDef {
-  constructor(extents) {
-    this.position = new b2Vec2(0.0, 0.0);
-    this.rotation = 0.0;
-    this.friction = 0.2;
-    this.restitution = 0.0;
-    this.extents = extents.copy();
-  }
-}
-
-class b2MassData {
-  constructor(mass, I) {
-    this.mass = mass;
-    this.I = I;
-  }
-}
-
 function b2Rotate(angle) {
   s = Math.sin(angle);
   c = Math.cos(angle);
@@ -165,11 +100,11 @@ function b2Rotate(angle) {
 }
 
 function b2Dot(a, b) {
-  return a.x * b.x + a.y * b.y;
+  return a.u0 * b.u0 + a.u1 * b.u1;
 }
 
 function b2Cross(a, b) {
-  return a.x * b.y - a.y * b.x;
+  return a.u0 * b.u1 - a.u1 * b.u0;
 }
 
 function b2AddVV(a, b) {
@@ -254,5 +189,6 @@ function b2MulTTT(A, B) {
 
 module.exports = {
   b2Vec2,
-  b2Dot
+  b2Dot,
+  b2Cross
 }
