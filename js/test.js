@@ -1,5 +1,6 @@
 const assert = require('assert')
 const b2math = require("./b2Math.js");
+const b2coll = require("./b2Collide.js");
 
 let tests = []
 function test(name, fn) {
