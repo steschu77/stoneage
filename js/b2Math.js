@@ -34,7 +34,7 @@ class b2Vec2 {
     const invLength = 1.0 / length;
     const u0 = invLength * this.u0;
     const u1 = invLength * this.u1;
-    return b2Vec2(u0, u1);
+    return new b2Vec2(u0, u1);
   }
 }
 

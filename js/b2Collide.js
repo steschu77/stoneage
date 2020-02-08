@@ -37,28 +37,46 @@ class b2MassData {
   }
 }
 
-// ----------------------------------------------------------------------------
-function b2ClipSegmentToLine(vIn, normal, offset) {
-  var vOut = [];
-  var vIn0 = vIn[0].v;
-  var vIn1 = vIn[1].v;
-
-  var distance0 = b2Dot(normal, vIn[0].v) - offset;
-  var distance1 = b2Dot(normal, vIn[1].v) - offset;
-
-  if (distance0 <= 0.0) vOut.push(vIn[0]);
-  if (distance1 <= 0.0) vOut.push(vIn[1]);
-
-  if (distance0 * distance1 < 0.0) {
-    let interp = distance0 / (distance0 - distance1);
-    let vx = vIn0.x + interp * (vIn1.x - vIn0.x);
-    let vy = vIn0.y + interp * (vIn1.y - vIn0.y);
-    let v = b2Vec2(vx, vy);
-    let id = (distance0 > 0.0) ? vIn[0].id : vIn[1].id;
-    vOut.push(new b2Contact(v, id));
+class b2ClipVertex {
+  constructor(id, v) {
+    this.id = id;
+    this.v = v;
   }
+}
 
-  return vOut;
+// ----------------------------------------------------------------------------
+function b2Interp(v0, v1, t)
+{
+  let u0 = v0.u0 + t * (v1.u0 - v0.u0);
+  let u1 = v0.u1 + t * (v1.u1 - v0.u1);
+  return new b2Vec2(u0, u1);
+}
+
+// ----------------------------------------------------------------------------
+function b2Distance(n, v, x)
+{
+  let u0 = n.u0 * (x.u0 - v.u0);
+  let u1 = n.u1 * (x.u1 - v.u1);
+  return u0 + u1;
+}
+
+// ----------------------------------------------------------------------------
+function b2ClipSegmentToLine(cv, normal, vx, clipEdge) {
+
+  var distance0 = b2Distance(normal, vx, cv[0].v);
+  var distance1 = b2Distance(normal, vx, cv[1].v);
+
+  if (distance0 > 0.0) {
+    let t = distance0 / (distance0 - distance1);
+    cv[0].v = b2Interp(cv[0].v, cv[1].v, t);
+    cv[0].id.setInEdge1(clipEdge);
+    cv[0].id.resetInEdge2();
+  } else if (distance1 > 0.0) {
+    let t = distance0 / (distance0 - distance1);
+    cv[1].v = b2Interp(cv[0].v, cv[1].v, t);
+    cv[1].id.setOutEdge1(clipEdge);
+    cv[1].id.resetOutEdge2();
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -66,16 +84,14 @@ function b2FindMaxSeparation(poly1, poly2, flip) {
   const count1 = poly1.vertexCount;
   const count2 = poly2.vertexCount;
 
-  const xf = b2MulTTT(poly2.xf, poly1.xf);
-
   let maxSeparation = -Number.MAX_VALUE;
   for (var i = 0; i < count1; ++i) {
-    const n = b2MulRV(xf.q, poly1.normals[i]);
-    const v1 = b2MulTV(xf, poly1.vertices[i]);
+    const n = poly1.normals[i];
+    const v1 = poly1.vertices[i];
 
     let si = Number.MAX_VALUE;
     for (var j = 0; j < count2; ++j) {
-      const sij = b2Dot(n, b2SubVV(poly1.vertices[j], v1));
+      const sij = b2Distance(n, v1, poly2.vertices[j]);
       if (sij < si) {
         si = sij;
       }
@@ -91,21 +107,21 @@ function b2FindMaxSeparation(poly1, poly2, flip) {
     poly1: poly1,
     poly2: poly2,
     maxSeparation: maxSeparation,
-    bestIndex: bestIndex,
+    index: bestIndex,
     flip: flip
   }
 }
 
 // ----------------------------------------------------------------------------
-function b2FindIncidentEdge(poly1, poly2, edge1) {
-  const count2 = poly2.vertexCount;
+function b2FindIncidentEdge(refEdge) {
 
-  const normal1 = b2MulT(poly2.xf.q, b2Mul(poly1.xf.q, poly1.normals[edge1]));
+  const count2 = refEdge.poly2.vertexCount;
+  const normal1 = refEdge.poly1.normals[refEdge.index];
 
   let minDot = Number.MAX_VALUE;
   let index = 0;
   for (var i = 0; i < count2; ++i) {
-    const dot = b2Dot(normal1, poly2.normals[i]);
+    const dot = b2math.b2Dot(normal1, poly2.normals[i]);
     if (dot < minDot) {
       minDot = dot;
       index = i;
@@ -115,24 +131,23 @@ function b2FindIncidentEdge(poly1, poly2, edge1) {
   const i1 = index;
   const i2 = i1 + 1 < count2 ? i1 + 1 : 0;
 
-  let c = [];
-  c.push(new b2Contact(b2MulTV(xf2, vertices2[i1]), edge1, i1));
-  c.push(new b2Contact(b2MulTV(xf2, vertices2[i2]), edge1, i2));
-  return c;
+  incEdge = [
+    { v: vertices2[i1], id: { i0: edge1, i1: i1 } },
+    { v: vertices2[i2], id: { i0: edge1, i1: i2 } }
+  ];
+  return incEdge;
 }
 
 // ----------------------------------------------------------------------------
 function b2CollidePoly(arbiter, polyA, polyB) {
 
-  const totalRadius = polyA.radius + polyB.radius;
-
   const edgeA = b2FindMaxSeparation(polyA, polyB, 0);
-  if (edgeA.maxSeparation > totalRadius) {
+  if (edgeA.maxSeparation > 0) {
     return;
   }
 
   const edgeB = b2FindMaxSeparation(polyB, polyA, 1);
-  if (edgeB.maxSeparation > totalRadius) {
+  if (edgeB.maxSeparation > 0) {
     return;
   }
 
@@ -140,53 +155,28 @@ function b2CollidePoly(arbiter, polyA, polyB) {
   const incidentEdge = b2FindIncidentEdge(referenceEdge);
 
   const count1 = referenceEdge.poly1.vertexCount;
+  const iv1 = referenceEdge.index;
+  const iv2 = iv1 + 1 < count1 ? iv1 + 1 : 0;
+
   const vert1s = referenceEdge.poly1.vertices;
-  const iv11 = referenceEdge.bestIndex;
-  const iv12 = iv11 + 1 < count1 ? iv11 + 1 : 0;
-  const v11 = vert1s[iv11];
-  const v12 = vert1s[iv12];
+  const norm1s = referenceEdge.poly1.normals;
+  const v11 = vert1s[iv1];
+  const v12 = vert1s[iv2];
+  const normal = norm1s[iv1];
+  const tangent = normal.perpendicular().neg();
 
-  const planePoint = b2MulSV(0.5, b2AddVV(v11, v12));
-  const localTangent = b2SubVV(v12, v11).normalize();
-  const localNormal = localTangent.perpendicular();
+  b2ClipSegmentToLine(incidentEdge, tangent.neg(), v11, iv1);
+  b2ClipSegmentToLine(incidentEdge, tangent, v12, iv2);
 
-  const xf1 = referenceEdge.poly1.xf;
-  const tangent = b2MulRV(xf1.q, localTangent);
-  const normal = tangent.perpendicular();
-
-  const tv11 = b2MulTV(xf1, v11);
-  const tv12 = b2MulTV(xf1, v12);
-
-  // Face offset and side offsets, extended by polytope skin thickness.
-  const frontOffset = b2Dot(normal, tv11);
-  const sideOffset1 = -b2Dot(tangent, tv11) + totalRadius;
-  const sideOffset2 = b2Dot(tangent, tv12) + totalRadius;
-
-  let clipPoints1 = b2ClipSegmentToLine(incidentEdge, tangent.neg(), sideOffset1);
-  if (clipPoints1.len < 2) {
-    return;
-  }
-
-  let clipPoints2 = b2ClipSegmentToLine(clipPoints1, tangent, sideOffset2);
-  if (clipPoints2.len < 2) {
-    return;
-  }
-
-  let arbiter = {
-    localNormal: localNormal,
-    localPoint: planePoint
-  }
-
-  var pointCount = 0;
-  for (var i = 0; i < b2Settings.b2_maxManifoldPoints; ++i) {
-    var separation = b2math.b2SubVV(b2math.b2Dot(frontNormal, clipPoints2[i].v), frontOffset);
-
+  let pointCount = 0;
+  for (let i = 0; i < 2; ++i) {
+    let separation = b2Distance(normal, v11, incidentEdge[i]);
     if (separation <= 0.0) {
-      var cp = manifold.points[pointCount];
+      let cp = manifold.points[pointCount];
       cp.separation = separation;
       cp.position.SetV(clipPoints2[i].v);
-      cp.id.Set(clipPoints2[i].id);
-      cp.id.features.flip = flip;
+      cp.normal.SetV(referenceEdge.flip ? normal.neg() : normal);
+      cp.id.Set(referenceEdge.flip ? incidentEdge[i].id.neg() : incidentEdge[i].id);
       ++pointCount;
     }
   }
